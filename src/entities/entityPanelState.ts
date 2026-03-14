@@ -144,7 +144,7 @@ const parseTagToken = (raw: string): string => {
   return trimmed
 }
 
-const parseTags = (raw: string): string[] => {
+export const parseTagsInput = (raw: string): string[] => {
   const listBody = getTagListBody(raw)
   if (listBody.trim().length === 0) {
     return []
@@ -329,7 +329,7 @@ export const toEntityState = (panel: EntityPanel): EntityState => {
       yaw: parseNumberOrZero(panel.yaw),
       pitch: parseNumberOrZero(panel.pitch),
     },
-    tags: parseTags(panel.tagsInput),
+    tags: parseTagsInput(panel.tagsInput),
     height,
     width,
     eyeHeight,

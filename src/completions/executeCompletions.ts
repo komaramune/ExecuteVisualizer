@@ -1,3 +1,4 @@
+import { parseTagsInput } from '../entities/entityPanelState'
 import { tokenizeExecuteWithRanges } from '../parser/executeParser'
 import { findSelectorTopLevelChar, splitSelectorTopLevel } from '../selectors/selectorSyntax'
 
@@ -21,13 +22,13 @@ export type CompletionEntityPanel = {
 const TOP_LEVEL_COMPLETIONS: CommandCompletion[] = [
   { label: 'as', insertText: 'as' },
   { label: 'at', insertText: 'at' },
+  { label: 'positioned', insertText: 'positioned' },
+  { label: 'rotated', insertText: 'rotated' },
+  { label: 'facing', insertText: 'facing' },
   { label: 'if', insertText: 'if' },
   { label: 'unless', insertText: 'unless' },
   { label: 'align', insertText: 'align' },
   { label: 'anchored', insertText: 'anchored' },
-  { label: 'positioned', insertText: 'positioned' },
-  { label: 'rotated', insertText: 'rotated' },
-  { label: 'facing', insertText: 'facing' },
   { label: 'run', insertText: 'run' },
 ]
 
@@ -68,6 +69,39 @@ const filterCompletions = (items: CommandCompletion[], fragment: string): Comman
   )
 }
 
+type SelectorValueOption = {
+  label: string
+  valueText: string
+}
+
+const formatLiteralSelectorStringValue = (value: string): string => {
+  if (/^[^,"\s\[\]]+$/.test(value) && !value.startsWith('!')) {
+    return value
+  }
+  return JSON.stringify(value)
+}
+
+const createSelectorValueOptions = (values: string[]): SelectorValueOption[] => {
+  const items: SelectorValueOption[] = []
+  const seen = new Set<string>()
+
+  const pushValue = (label: string, valueText: string): void => {
+    if (seen.has(valueText)) {
+      return
+    }
+    seen.add(valueText)
+    items.push({ label, valueText })
+  }
+
+  for (const value of values) {
+    const literalValueText = formatLiteralSelectorStringValue(value)
+    pushValue(value, literalValueText)
+    pushValue(`!${literalValueText}`, `!${literalValueText}`)
+  }
+
+  return items
+}
+
 const SELECTOR_ARGUMENT_KEYS = [
   'name',
   'tag',
@@ -84,27 +118,24 @@ const SELECTOR_ARGUMENT_KEYS = [
   'dz',
 ] as const
 
-const selectorValueCompletions = (key: string, panels: CompletionEntityPanel[]): string[] => {
+const selectorValueCompletions = (key: string, panels: CompletionEntityPanel[]): SelectorValueOption[] => {
   switch (key) {
     case 'name':
-      return panels
-        .map((panel) => panel.name.trim())
-        .filter((name) => name.length > 0)
+      return createSelectorValueOptions(
+        Array.from(new Set(
+          panels
+            .map((panel) => panel.name.trim())
+            .filter((name) => name.length > 0),
+        )),
+      )
     case 'tag':
-      return Array.from(
-        new Set(
-          panels.flatMap((panel) =>
-            panel.tagsInput
-              .split(',')
-              .map((tag) => tag.trim())
-              .filter((tag) => tag.length > 0),
-          ),
-        ),
+      return createSelectorValueOptions(
+        Array.from(new Set(panels.flatMap((panel) => parseTagsInput(panel.tagsInput)))),
       )
     case 'sort':
-      return ['nearest', 'furthest', 'random', 'arbitrary']
+      return ['nearest', 'furthest', 'random', 'arbitrary'].map((value) => ({ label: value, valueText: value }))
     case 'limit':
-      return ['1', '2', '3']
+      return ['1', '2', '3'].map((value) => ({ label: value, valueText: value }))
     default:
       return []
   }
@@ -183,8 +214,9 @@ const selectorTokenCompletions = (fragment: string, panels: CompletionEntityPane
 
   const values = selectorValueCompletions(key, panels)
   const availableKeys = SELECTOR_ARGUMENT_KEYS.filter((candidateKey) => candidateKey === 'tag' || (!existingKeys.includes(candidateKey) && candidateKey !== key))
-  const matchedValue = values.find((value) => value === valueFragment)
+  const matchedValue = values.find((value) => value.valueText === valueFragment)
   const hasTypedValue = valueFragment.trim().length > 0
+  const allowsEmptyValue = key === 'tag'
 
   const suffixItemsForValue = (value: string): CommandCompletion[] => [
     { label: ']', insertText: `${prefix}${key}=${value}]` },
@@ -192,16 +224,18 @@ const selectorTokenCompletions = (fragment: string, panels: CompletionEntityPane
   ]
 
   if (matchedValue) {
-    return suffixItemsForValue(matchedValue)
+    return suffixItemsForValue(matchedValue.valueText)
   }
 
   const valueItems = values.map((value) => ({
-    label: value,
-    insertText: `${prefix}${key}=${value}`,
+    label: value.label,
+    insertText: `${prefix}${key}=${value.valueText}`,
   }))
   const filteredValueItems = filterCompletions(valueItems, valueFragment)
   if (!hasTypedValue) {
-    return filteredValueItems
+    return allowsEmptyValue
+      ? dedupeCompletions([...suffixItemsForValue(''), ...filteredValueItems])
+      : filteredValueItems
   }
 
   return dedupeCompletions([...suffixItemsForValue(valueFragment), ...filteredValueItems])
@@ -376,35 +410,53 @@ export const getCommandCompletionContext = (
   const tokens = tokenizeExecuteWithRanges(input)
   const tokenAtCursor = tokens.find((token) => token.start <= boundedCursor && boundedCursor <= token.end) ?? null
 
-  const activeToken = (() => {
-    if (!tokenAtCursor) {
-      return null
-    }
+  if (!tokenAtCursor) {
+    const completedTokens = tokens
+      .filter((token) => token.end <= boundedCursor)
+      .map((token) => token.text)
 
-    if (boundedCursor < tokenAtCursor.end) {
-      return tokenAtCursor
+    return {
+      items: getCompletionItems(completedTokens, '', panels),
+      rangeStart: boundedCursor,
+      rangeEnd: boundedCursor,
     }
+  }
 
-    const completedBeforeToken = tokens
+  if (boundedCursor < tokenAtCursor.end) {
+    const completedTokens = tokens
       .filter((token) => token.end <= tokenAtCursor.start)
       .map((token) => token.text)
-    const matchingItems = getCompletionItems(completedBeforeToken, tokenAtCursor.text, panels)
-    const isExactCompletion = matchingItems.some((item) => item.insertText.trim() == tokenAtCursor.text || item.label.trim() == tokenAtCursor.text)
 
-    return isExactCompletion ? null : tokenAtCursor
-  })()
+    return {
+      items: getCompletionItems(completedTokens, input.slice(tokenAtCursor.start, boundedCursor), panels),
+      rangeStart: tokenAtCursor.start,
+      rangeEnd: boundedCursor,
+    }
+  }
 
-  const rangeStart = activeToken?.start ?? boundedCursor
-  const rangeEnd = boundedCursor
-  const fragment = activeToken ? input.slice(rangeStart, boundedCursor) : ''
-  const completedTokens = tokens
-    .filter((token) => token.end <= rangeStart)
+  const completedBeforeToken = tokens
+    .filter((token) => token.end <= tokenAtCursor.start)
     .map((token) => token.text)
-  const items = getCompletionItems(completedTokens, fragment, panels)
+  const matchingItems = getCompletionItems(completedBeforeToken, tokenAtCursor.text, panels)
+  const isExactCompletion = matchingItems.some((item) => item.insertText.trim() === tokenAtCursor.text || item.label.trim() === tokenAtCursor.text)
+  const isBareSelectorToken = /^@[esnpar]$/.test(tokenAtCursor.text)
+
+  if (isExactCompletion && !isBareSelectorToken) {
+    return {
+      items: [],
+      rangeStart: boundedCursor,
+      rangeEnd: boundedCursor,
+    }
+  }
+
+  const items = isBareSelectorToken
+    ? matchingItems.filter((item) => item.insertText.trim() !== tokenAtCursor.text && item.label.trim() !== tokenAtCursor.text)
+    : matchingItems
 
   return {
     items,
-    rangeStart,
-    rangeEnd,
+    rangeStart: tokenAtCursor.start,
+    rangeEnd: boundedCursor,
   }
 }
+

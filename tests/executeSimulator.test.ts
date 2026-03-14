@@ -133,6 +133,105 @@ export default [
     assert.deepEqual(result.steps.map((step) => step.subcommand.kind), ['if_entity'])
   }),
 
+
+  defineTest('negated selector name values exclude matching entities', () => {
+    const entity1 = createEntity({
+      id: 'entity-1',
+      name: 'entity1',
+    })
+    const entity2 = createEntity({
+      id: 'entity-2',
+      name: 'entity2',
+    })
+    const context: ExecuteContext = { entity: entity1, entities: [entity1, entity2] }
+
+    const result = evaluateExecute('execute as @e[name=!entity1]', context)
+
+    assert.equal(result.ok, true)
+    if (!result.ok) {
+      return
+    }
+
+    const asSteps = result.steps.filter((step) => step.subcommand.kind === 'as')
+    assert.equal(asSteps.length, 1)
+    assert.equal(asSteps[0]?.after.executorId, 'entity-2')
+  }),
+
+  defineTest('negated selector tag values exclude entities with the tag', () => {
+    const entity1 = createEntity({
+      id: 'entity-1',
+      name: 'entity1',
+      tags: ['alpha'],
+    })
+    const entity2 = createEntity({
+      id: 'entity-2',
+      name: 'entity2',
+      tags: ['beta'],
+    })
+    const context: ExecuteContext = { entity: entity1, entities: [entity1, entity2] }
+
+    const result = evaluateExecute('execute as @e[tag=!alpha]', context)
+
+    assert.equal(result.ok, true)
+    if (!result.ok) {
+      return
+    }
+
+    const asSteps = result.steps.filter((step) => step.subcommand.kind === 'as')
+    assert.equal(asSteps.length, 1)
+    assert.equal(asSteps[0]?.after.executorId, 'entity-2')
+  }),
+
+  defineTest('empty tag selectors match only entities without tags', () => {
+    const entity1 = createEntity({
+      id: 'entity-1',
+      name: 'entity1',
+      tags: [],
+    })
+    const entity2 = createEntity({
+      id: 'entity-2',
+      name: 'entity2',
+      tags: ['alpha'],
+    })
+    const context: ExecuteContext = { entity: entity1, entities: [entity1, entity2] }
+
+    const result = evaluateExecute('execute as @e[tag=]', context)
+
+    assert.equal(result.ok, true)
+    if (!result.ok) {
+      return
+    }
+
+    const asSteps = result.steps.filter((step) => step.subcommand.kind === 'as')
+    assert.equal(asSteps.length, 1)
+    assert.equal(asSteps[0]?.after.executorId, 'entity-1')
+  }),
+
+  defineTest('bare bang tag selectors match only entities that have one or more tags', () => {
+    const entity1 = createEntity({
+      id: 'entity-1',
+      name: 'entity1',
+      tags: [],
+    })
+    const entity2 = createEntity({
+      id: 'entity-2',
+      name: 'entity2',
+      tags: ['alpha'],
+    })
+    const context: ExecuteContext = { entity: entity1, entities: [entity1, entity2] }
+
+    const result = evaluateExecute('execute as @e[tag=!]', context)
+
+    assert.equal(result.ok, true)
+    if (!result.ok) {
+      return
+    }
+
+    const asSteps = result.steps.filter((step) => step.subcommand.kind === 'as')
+    assert.equal(asSteps.length, 1)
+    assert.equal(asSteps[0]?.after.executorId, 'entity-2')
+  }),
+
   defineTest('quoted selector tag values match tags that include commas', () => {
     const entity = createEntity({
       id: 'entity-1',

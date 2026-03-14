@@ -43,6 +43,7 @@ import { PanelCollapseButton } from './components/PanelCollapseButton'
 const INCOMPLETE_PARSE_MESSAGES = new Set([
   'Expected an entity selector.',
   'Expected 3 coordinates.',
+  'align requires one or more axes.',
   'rotated requires yaw and pitch.',
   'Expected an if condition.',
   'Expected an unless condition.',
@@ -1116,6 +1117,7 @@ function App() {
 }
 
 export default App
+
 
 
 

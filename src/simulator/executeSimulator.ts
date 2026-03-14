@@ -11,7 +11,7 @@ import type {
   Vec3,
 } from '../types/execute'
 import { parseExecute } from '../parser/executeParser'
-import { getUnknownSelectorKeys, matchesEntitySelector, parseDistanceValue, parseLimitValue, parseRotationValue, parseSelectorCoordinateValue, parseSelectorStringValue, parseSortValue, parseTargetSelector } from '../selectors/entitySelector'
+import { getUnknownSelectorKeys, matchesEntitySelector, parseDistanceValue, parseLimitValue, parseNegatedSelectorStringValue, parseRotationValue, parseSelectorCoordinateValue, parseSortValue, parseTargetSelector } from '../selectors/entitySelector'
 
 const SUPPORTED_SELECTOR_KEYS = ['name', 'tag', 'distance', 'type', 'gamemode', 'team', 'scores', 'nbt', 'level', 'x_rotation', 'y_rotation', 'sort', 'limit', 'x', 'y', 'z', 'dx', 'dy', 'dz']
 
@@ -252,9 +252,37 @@ const resolveEntities = (
       }
     : null
 
+  const matchStringSelector = (candidateValue: string, rawValue: string): boolean => {
+    const parsed = parseNegatedSelectorStringValue(rawValue)
+    if (!parsed) {
+      return false
+    }
+
+    const matched = candidateValue === parsed.value
+    return parsed.negated ? !matched : matched
+  }
+
+  const matchTagSelector = (candidateTags: string[], rawValue: string): boolean => {
+    const trimmed = rawValue.trim()
+    if (trimmed.length === 0) {
+      return candidateTags.length === 0
+    }
+    if (trimmed === '!') {
+      return candidateTags.length > 0
+    }
+
+    const parsed = parseNegatedSelectorStringValue(rawValue)
+    if (!parsed) {
+      return false
+    }
+
+    const matched = candidateTags.includes(parsed.value)
+    return parsed.negated ? !matched : matched
+  }
+
   const matchers = {
-    name: (candidate: EntityState, value: string) => candidate.name === parseSelectorStringValue(value),
-    tag: (candidate: EntityState, value: string) => candidate.tags.includes(parseSelectorStringValue(value)),
+    name: (candidate: EntityState, value: string) => matchStringSelector(candidate.name, value),
+    tag: (candidate: EntityState, value: string) => matchTagSelector(candidate.tags, value),
     distance: (candidate: EntityState, value: string) => matchesDistance(selectorOrigin, candidate.position, value),
     type: () => true,
     gamemode: () => true,
@@ -789,5 +817,6 @@ export const evaluateExecute = (input: string, context: ExecuteContext): Evaluat
     steps,
   }
 }
+
 
 

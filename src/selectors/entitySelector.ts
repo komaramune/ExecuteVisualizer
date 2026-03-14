@@ -57,13 +57,14 @@ const parseSelectorArgs = (content: string): Record<string, string[]> | null => 
 
   for (const part of partsToParse) {
     const eqIndex = findSelectorTopLevelChar(part, '=')
-    if (eqIndex <= 0 || eqIndex === part.length - 1) {
+    if (eqIndex <= 0) {
       return null
     }
 
     const key = part.slice(0, eqIndex).trim()
     const value = part.slice(eqIndex + 1).trim()
-    if (key.length === 0 || value.length === 0) {
+    const allowsEmptyValue = key === 'tag'
+    if (key.length === 0 || (!allowsEmptyValue && value.length === 0)) {
       return null
     }
 
@@ -186,6 +187,23 @@ export const parseSelectorStringValue = (value: string): string => {
   return trimmed
 }
 
+export const parseNegatedSelectorStringValue = (value: string): { negated: boolean; value: string } | null => {
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('!')) {
+    return { negated: false, value: parseSelectorStringValue(trimmed) }
+  }
+
+  const parsedValue = parseSelectorStringValue(trimmed.slice(1))
+  if (parsedValue.length === 0) {
+    return null
+  }
+
+  return {
+    negated: true,
+    value: parsedValue,
+  }
+}
+
 export const parseTargetSelector = (token: string): ParsedTargetSelector | null => {
   if (token.length < 2 || token[0] !== '@') {
     return null
@@ -251,3 +269,4 @@ export const matchesEntitySelector = (
 
   return true
 }
+

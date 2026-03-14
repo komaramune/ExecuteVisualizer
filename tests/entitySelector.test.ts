@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { parseTargetSelector } from '../src/selectors/entitySelector.ts'
+import { parseNegatedSelectorStringValue, parseTargetSelector } from '../src/selectors/entitySelector.ts'
 import { defineTest } from './testHarness.ts'
 
 export default [
@@ -15,6 +15,20 @@ export default [
   defineTest('parseTargetSelector rejects leading and consecutive empty arguments', () => {
     assert.equal(parseTargetSelector('@e[,name=entity1]'), null)
     assert.equal(parseTargetSelector('@e[name=entity1,,tag=alpha]'), null)
+  }),
+
+  defineTest('parseTargetSelector accepts empty tag values for no-tag selectors', () => {
+    const parsed = parseTargetSelector('@e[tag=]')
+
+    assert.ok(parsed)
+    assert.deepEqual(parsed.args, { tag: [''] })
+  }),
+
+  defineTest('parseNegatedSelectorStringValue keeps negation outside quoted names and tags', () => {
+    assert.deepEqual(parseNegatedSelectorStringValue('!entity1'), { negated: true, value: 'entity1' })
+    assert.deepEqual(parseNegatedSelectorStringValue('!"entity, one"'), { negated: true, value: 'entity, one' })
+    assert.deepEqual(parseNegatedSelectorStringValue('entity1'), { negated: false, value: 'entity1' })
+    assert.equal(parseNegatedSelectorStringValue('!'), null)
   }),
 
   defineTest('parseTargetSelector keeps nested commas inside selector values intact', () => {
