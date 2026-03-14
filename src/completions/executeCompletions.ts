@@ -75,7 +75,7 @@ type SelectorValueOption = {
 }
 
 const formatLiteralSelectorStringValue = (value: string): string => {
-  if (/^[^,"\s\[\]]+$/.test(value) && !value.startsWith('!')) {
+  if (/^[^,"\s[\]]+$/.test(value) && !value.startsWith('!')) {
     return value
   }
   return JSON.stringify(value)

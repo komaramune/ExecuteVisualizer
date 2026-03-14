@@ -8,7 +8,7 @@ const tests: TestCase[] = [
       const panels = [{ name: 'entity1', tagsInput: '["hoge, fuga", "piyo"]' }]
       const context = getCommandCompletionContext('execute as @e[tag=', 'execute as @e[tag='.length, panels)
 
-      if (!context.items.some((item) => item.label === 'hoge, fuga' && item.insertText.includes('\"hoge, fuga\"'))) {
+      if (!context.items.some((item) => item.label === 'hoge, fuga' && item.insertText.includes('"hoge, fuga"'))) {
         throw new Error('expected quoted tag completion from bracketed tags input')
       }
 
