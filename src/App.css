@@ -402,6 +402,83 @@ body {
   cursor: grabbing;
 }
 
+.scene-gizmo {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(30, 43, 59, 0.96), rgba(12, 18, 26, 0.92));
+  border: 1px solid rgba(97, 125, 154, 0.45);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  user-select: none;
+  z-index: 5;
+}
+
+.scene-gizmo-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #f3f8ff;
+  box-shadow: 0 0 0 2px rgba(16, 24, 34, 0.72);
+}
+
+.scene-gizmo-axis {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #f8fbff;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 0 0 2px rgba(16, 24, 34, 0.76);
+  transition: filter 120ms ease, box-shadow 120ms ease;
+}
+
+.scene-gizmo-axis:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 2px rgba(16, 24, 34, 0.9), 0 0 0 4px rgba(232, 240, 255, 0.12);
+}
+
+.scene-gizmo-axis:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 24, 34, 0.9), 0 0 0 4px rgba(156, 203, 255, 0.44);
+}
+
+.scene-gizmo-axis.is-negative {
+  width: 14px;
+  height: 14px;
+  font-size: 0;
+}
+
+.scene-gizmo-axis-x {
+  background: #ff5b67;
+}
+
+.scene-gizmo-axis-y {
+  background: #aef01a;
+  color: #0f1a08;
+}
+
+.scene-gizmo-axis-z {
+  background: #19a7ff;
+}
+
 .viewer-empty {
   min-height: 0;
   border-radius: 12px;

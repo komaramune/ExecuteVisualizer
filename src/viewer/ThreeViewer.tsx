@@ -91,7 +91,25 @@ const SELECTOR_DISTANCE_COLOR = 0x67cfff
 const SELECTOR_DISTANCE_MIN_COLOR = 0xa8b6ff
 const SELECTOR_BOX_COLOR = 0xffc56b
 const SELECTOR_ORIGIN_COLOR = 0xffffff
+const SCENE_GIZMO_RADIUS = 24
+const SCENE_GIZMO_CENTER = 40
 
+type SceneGizmoAxis = {
+  key: string
+  label: string
+  direction: Vector3
+  colorClassName: string
+  isPositive: boolean
+}
+
+const SCENE_GIZMO_AXES: SceneGizmoAxis[] = [
+  { key: 'pos-x', label: 'X', direction: new Vector3(1, 0, 0), colorClassName: 'scene-gizmo-axis-x', isPositive: true },
+  { key: 'neg-x', label: '', direction: new Vector3(-1, 0, 0), colorClassName: 'scene-gizmo-axis-x', isPositive: false },
+  { key: 'pos-y', label: 'Y', direction: new Vector3(0, 1, 0), colorClassName: 'scene-gizmo-axis-y', isPositive: true },
+  { key: 'neg-y', label: '', direction: new Vector3(0, -1, 0), colorClassName: 'scene-gizmo-axis-y', isPositive: false },
+  { key: 'pos-z', label: 'Z', direction: new Vector3(0, 0, 1), colorClassName: 'scene-gizmo-axis-z', isPositive: true },
+  { key: 'neg-z', label: '', direction: new Vector3(0, 0, -1), colorClassName: 'scene-gizmo-axis-z', isPositive: false },
+]
 
 const toThree = (v: Vec3): Vector3 => new Vector3(v.x, v.y, v.z)
 
@@ -482,9 +500,61 @@ export function ThreeViewer({ entities, steps, runStates, highlightedStepId, hig
   const runtimeRef = useRef<Runtime | null>(null)
   const markerSizeRef = useRef(markerSizeMultiplier)
   const initialCameraTargetRef = useRef(cameraTarget)
+  const sceneGizmoRef = useRef<HTMLDivElement | null>(null)
+  const sceneGizmoButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   useEffect(() => {
     markerSizeRef.current = markerSizeMultiplier
   }, [markerSizeMultiplier])
+
+  const updateSceneGizmo = (runtime: Runtime): void => {
+    const gizmo = sceneGizmoRef.current
+    if (!gizmo) {
+      return
+    }
+
+    const inverseCameraQuaternion = runtime.camera.quaternion.clone().invert()
+    for (const axis of SCENE_GIZMO_AXES) {
+      const button = sceneGizmoButtonRefs.current[axis.key]
+      if (!button) {
+        continue
+      }
+
+      const relativeDirection = axis.direction.clone().applyQuaternion(inverseCameraQuaternion)
+      const x = SCENE_GIZMO_CENTER + (relativeDirection.x * SCENE_GIZMO_RADIUS)
+      const y = SCENE_GIZMO_CENTER - (relativeDirection.y * SCENE_GIZMO_RADIUS)
+      const depth = (relativeDirection.z + 1) / 2
+      const scale = axis.isPositive
+        ? 0.9 + (depth * 0.22)
+        : 0.62 + (depth * 0.14)
+      const opacity = axis.isPositive
+        ? 0.72 + (depth * 0.28)
+        : 0.2 + (depth * 0.34)
+
+      button.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale})`
+      button.style.opacity = `${opacity}`
+      button.style.zIndex = `${10 + Math.round(depth * 10)}`
+    }
+  }
+
+  const snapCameraToAxis = (direction: Vector3): void => {
+    const runtime = runtimeRef.current
+    if (!runtime) {
+      return
+    }
+
+    const target = runtime.controls.target.clone()
+    const distance = Math.max(runtime.camera.position.distanceTo(target), 0.001)
+    const normalizedDirection = direction.clone().normalize()
+    const stabilizedDirection = Math.abs(normalizedDirection.y) > 0.999
+      ? new Vector3(0, normalizedDirection.y, normalizedDirection.y > 0 ? 0.0001 : -0.0001).normalize()
+      : normalizedDirection
+
+    runtime.camera.position.copy(target).addScaledVector(stabilizedDirection, distance)
+    runtime.camera.up.set(0, 1, 0)
+    runtime.camera.lookAt(target)
+    runtime.controls.update()
+    updateSceneGizmo(runtime)
+  }
 
   useEffect(() => {
     const host = hostRef.current
@@ -507,7 +577,7 @@ export function ThreeViewer({ entities, steps, runStates, highlightedStepId, hig
     host.appendChild(renderer.domElement)
 
     const controls = new OrbitControls(camera, renderer.domElement)
-    controls.enableDamping = true
+    controls.enableDamping = false
     controls.target.set(initialCameraTarget.x, initialCameraTarget.y, initialCameraTarget.z)
 
     const grid = new GridHelper(128, 128, 0x4a5a6a, 0x2e3842)
@@ -601,6 +671,7 @@ export function ThreeViewer({ entities, steps, runStates, highlightedStepId, hig
       }
 
       runtime.controls.update()
+      updateSceneGizmo(runtime)
       runtime.renderer.render(runtime.scene, runtime.camera)
       rafId = window.requestAnimationFrame(animate)
     }
@@ -816,8 +887,30 @@ export function ThreeViewer({ entities, steps, runStates, highlightedStepId, hig
     }
   }, [cameraTarget, entities, steps, runStates, highlightedStepId, highlightedEntityId, highlightedStepIds, highlightedRunBranchId, highlightedRunAll, hiddenRunBranchIds, hiddenStepIds, markerOpacity, selectorVisualization])
 
-  return <div className="viewer-canvas" ref={hostRef} />
+  return (
+    <div className="viewer-canvas" ref={hostRef}>
+      <div className="scene-gizmo" ref={sceneGizmoRef} aria-label="Scene Gizmo">
+        {SCENE_GIZMO_AXES.map((axis) => (
+          <button
+            key={axis.key}
+            type="button"
+            className={`scene-gizmo-axis ${axis.colorClassName} ${axis.isPositive ? 'is-positive' : 'is-negative'}`}
+            aria-label={axis.isPositive ? `${axis.label} axis view` : `${axis.colorClassName.slice(-1).toUpperCase()} negative axis view`}
+            onClick={() => snapCameraToAxis(axis.direction)}
+            ref={(node) => {
+              sceneGizmoButtonRefs.current[axis.key] = node
+            }}
+          >
+            {axis.label}
+          </button>
+        ))}
+        <div className="scene-gizmo-core" aria-hidden="true" />
+      </div>
+    </div>
+  )
 }
+
+
 
 
 
