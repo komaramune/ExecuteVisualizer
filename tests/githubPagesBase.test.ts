@@ -5,7 +5,7 @@ import { defineTest } from './testHarness.ts'
 
 export default [
   defineTest('resolveGitHubPagesBase uses the repository name for project pages', () => {
-    assert.equal(resolveGitHubPagesBase('octocat/ExecuteVisualizer'), '/ExecuteVisualizer/')
+    assert.equal(resolveGitHubPagesBase('octocat/ExecuteVisualizer'), '/execute-visualizer/')
   }),
 
   defineTest('resolveGitHubPagesBase returns root for user pages repositories', () => {
@@ -16,3 +16,4 @@ export default [
     assert.equal(resolveGitHubPagesBase('octocat/ExecuteVisualizer', 'custom/base'), '/custom/base/')
   }),
 ]
+
